@@ -1,0 +1,79 @@
+version: "3.7"
+services:
+  web_ng:
+    image: nginx
+    networks:
+      - front-end
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - "./certs:/etc/nginx/conf.d"
+    depends_on:
+      - app_sand
+      - db_posti
+    deploy:
+      resources:
+        cpus: "0.2"
+        memory: 100M
+      reservations:
+        cpus: "0.25"
+        memory: 50M
+      placement:
+        constraints:
+          - "node.role == manager"
+      
+  app_sand:
+    image: 217233105762.dkr.ecr.eu-central-1.amazonaws.com/pxi/challenge/sandbox
+    ports:
+      - "5000:5000"
+    environment:
+      - DB_NAME= postgres
+      - DB_USER= postgres
+      - DB_PASS= /run/secrets/postgres_password
+      - DB_SERVICE= db_posti
+      - DB_PORT= 5432
+    networks:
+      - front-end
+      - back-end
+    depends_on:
+      - db_posti
+    secrets:
+      - postgres_password
+    deploy:
+      resources:
+        cpus: "0.2"
+        memory: 100M
+      replicas: 4
+      update_config:
+        parallelism: 2
+        failure-action: rollback
+      restart_policy: 
+        condition: on-failure
+        max_attempts: 5
+        window: 90s
+        delay: 5s
+
+      placement:
+        constraints:
+          - "node.role == worker"
+
+  db_posti:
+    image: postgres
+    ports:
+      - "5432:5432"
+    networks:
+      - back-end
+    deploy:
+      resources:
+        cpus: "0.4"
+        memory: 100M
+      placement:
+        constraints:
+          - "node.role == worker"
+networks:
+  front-end:
+  back-end:
+secrets:
+  postgres_password:
+    external: true
